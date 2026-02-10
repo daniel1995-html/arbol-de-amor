@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Árbol de Amor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+    margin: 0;
+    background: #f6efe9;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: Arial, sans-serif;
+}
+canvas { background: #f6efe9; }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function resizeCanvas() {
+    const scale = window.devicePixelRatio || 1;
+    const width = Math.min(window.innerWidth, 900);
+    const height = Math.min(window.innerHeight, 450);
+
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+}
+
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+
+// ================= ESTADOS =================
+let stage = "fall";
+let heartY = -30;
+let trunkHeight = 0;
+let bloomAmount = 0;
+let treeOffsetX = 200;
+
+// ================= TEXTO =================
+const textLines = [
+    "Para el amor de mi vida:",
+    "",
+    "El consuelo que siento",
+    "cuando estamos juntos",
+    "en silencio me hace",
+    "amar el pequeño",
+    "universo que hemos",
+    "construido para",
+    "nosotros.",
+    "",
+    "Mi amor por ti comenzó hace..."
+];
+
+let typedText = "";
+let currentChar = 0;
+let currentLine = 0;
+let typingDelay = 0;
+
+// ================= CONTADOR =================
+const baseDays = 4015;
+const baseHours = 1368;
+const counterStart = Date.now();
+
+// ================= LATIDO HUMANO =================
+let heartScale = 1;
+let beatFrame = 0;
+
+// ================= HOJAS =================
+let fallingHearts = [];
+let lastLeafDrop = Date.now();
+
+// ================= UTILIDADES =================
+function drawGround() {
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height - 40);
+    ctx.lineTo(canvas.width, canvas.height - 40);
+    ctx.stroke();
+}
+
+function drawMiniHeart(x, y, size, color, scale = 1) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(-size, -size, -size*2, size/2, 0, size);
+    ctx.bezierCurveTo(size*2, size/2, size, -size, 0, 0);
+    ctx.fill();
+    ctx.restore();
+}
+
+// ================= TRONCO =================
+function drawTrunk(h) {
+    const x = canvas.width/2 + treeOffsetX;
+    const y = canvas.height - 40;
+    ctx.fillStyle = "#2a9d8f";
+    ctx.beginPath();
+    ctx.moveTo(x-18, y);
+    ctx.lineTo(x+18, y);
+    ctx.lineTo(x+6, y-h);
+    ctx.lineTo(x-6, y-h);
+    ctx.closePath();
+    ctx.fill();
+}
+
+// ================= RAMAS =================
+function drawBranches(h) {
+    const x = canvas.width/2 + treeOffsetX;
+    const y = canvas.height - 40 - h + 20;
+    ctx.strokeStyle = "#2a9d8f";
+    ctx.lineWidth = 3;
+
+    [[-40,-40],[40,-40],[-60,-80],[60,-80]].forEach(([dx,dy])=>{
+        ctx.beginPath();
+        ctx.moveTo(x,y);
+        ctx.lineTo(x+dx,y+dy);
+        ctx.stroke();
+    });
+}
+
+// ================= COPA =================
+const heartColors = ["#ff4d6d","#ff758f","#ffd166","#cdb4db","#ff9f1c"];
+
+function drawHeartCrown(amount) {
+    for(let i=0;i<amount;i++){
+        const t=Math.random()*Math.PI*2;
+        const r=Math.random();
+        const x=16*Math.sin(t)**3;
+        const y=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));
+        drawMiniHeart(
+            canvas.width/2+treeOffsetX+x*r*9,
+            canvas.height/2+y*r*9-20,
+            4,
+            heartColors[Math.random()*heartColors.length|0],
+            heartScale
+        );
+    }
+}
+
+// ================= LATIDO REAL =================
+function updateHeartbeat(){
+    beatFrame++;
+
+    if (beatFrame === 1) heartScale = 1.15;
+    if (beatFrame === 6) heartScale = 1;
+    if (beatFrame === 12) heartScale = 1.08;
+    if (beatFrame === 18) heartScale = 1;
+
+    if (beatFrame > 60) beatFrame = 0;
+}
+
+// ================= HOJAS =================
+function updateLeaves(){
+    if(Date.now() - lastLeafDrop > 5000){
+        lastLeafDrop = Date.now();
+        for(let i=0;i<2;i++){
+            fallingHearts.push({
+                x: canvas.width/2 + treeOffsetX + (Math.random()*60-30),
+                y: canvas.height/2 - 60,
+                vy: 1 + Math.random(),
+                rot: Math.random()*Math.PI
+            });
+        }
+    }
+
+    fallingHearts.forEach(h=>{
+        h.y += h.vy;
+        h.vy += 0.05;
+        h.rot += 0.02;
+        drawMiniHeart(h.x, h.y, 5, "#ff758f");
+    });
+
+    fallingHearts = fallingHearts.filter(h=>h.y<canvas.height-40);
+}
+
+// ================= TEXTO =================
+function drawTypedText(){
+    ctx.fillStyle="#333";
+    ctx.font="20px Arial";
+    let y=80;
+    typedText.split("\n").forEach(l=>{
+        ctx.fillText(l,40,y);
+        y+=26;
+    });
+
+    typingDelay++;
+    if(typingDelay<5)return;
+    typingDelay=0;
+
+    if(currentLine<textLines.length){
+        if(currentChar<textLines[currentLine].length){
+            typedText+=textLines[currentLine][currentChar++];
+        } else {
+            typedText+="\n";
+            currentLine++;
+            currentChar=0;
+        }
+    }
+}
+
+// ================= CONTADOR (ARREGLADO) =================
+function drawCounter(){
+    const s = Math.floor((Date.now() - counterStart) / 1000);
+    const sec = s % 60;
+    const min = Math.floor(s / 60) % 60;
+    const hrs = baseHours + Math.floor(s / 3600);
+    const days = baseDays + Math.floor(hrs / 24);
+
+    ctx.font="18px Arial";
+    ctx.fillText(
+        `${days} días ${hrs} horas ${min} minutos ${sec} segundos`,
+        40, canvas.height-70
+    );
+}
+
+// ================= ANIMACIÓN =================
+function animate(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawGround();
+    updateHeartbeat();
+
+    if(stage==="fall"){
+        heartY+=4;
+        drawMiniHeart(canvas.width/2+treeOffsetX,heartY,8,"#ff4d6d");
+        if(heartY>=canvas.height-50)stage="grow";
+    }
+    if(stage==="grow"){
+        trunkHeight+=2;
+        drawTrunk(trunkHeight);
+        drawBranches(trunkHeight);
+        if(trunkHeight>=140)stage="bloom";
+    }
+    if(stage==="bloom"){
+        bloomAmount+=25;
+        drawTrunk(140);
+        drawBranches(140);
+        drawHeartCrown(bloomAmount);
+        if(bloomAmount>=1800)stage="text";
+    }
+    if(stage==="text"){
+        drawTrunk(140);
+        drawBranches(140);
+        drawHeartCrown(1800);
+        updateLeaves();
+        drawTypedText();
+        drawCounter();
+    }
+
+    requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+
+</body>
+</html>
